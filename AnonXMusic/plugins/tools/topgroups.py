@@ -111,7 +111,7 @@ async def top_groups_command(client, message: Message, _):
             total_served = len(await get_served_chats())
             text += f"<b>📈 Total Served Groups:</b> <code>{total_served:,}</code>\n\n"
         except:
-            text += f"<b>📈 Active Groups:</b> <code>{len(top_groups)}</code>\n\n"
+            text += f"<b>📈 Active Groups:</b> <code>{len(top_groups)}</code>\n</blockquote>"
         
         # text += f"<b>🔄 Updated:</b> <code>{datetime.now().strftime('%d/%m/%Y %H:%M')}</code>\n"
         # text += f"<b>💡 Tip:</b> Use <code>/check &lt;chat_id&gt;</code> to check specific group stats</blockquote>"
