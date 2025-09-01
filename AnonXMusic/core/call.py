@@ -14,9 +14,8 @@ from pytgcalls.types import Update, StreamEnded
 from pytgcalls import filters as fl
 from pytgcalls.types import AudioQuality, VideoQuality
 from pytgcalls.types import MediaStream,ChatUpdate
-
+from AnonXMusic.utils.stream.autoclear import auto_clean
 import config
-from config import autoclean
 from AnonXMusic import LOGGER, YouTube, app
 from AnonXMusic.misc import db
 from AnonXMusic.utils.database import (
@@ -248,7 +247,7 @@ class Call(PyTgCalls):
                 video_parameters=VideoQuality.SD_480p,
             )
         else:
-            stream = MediaStream(link, audio_parameters=AudioQuality.HIGH,video_flags=MediaStream.Flags.IGNORE, ytdlp_parameters=f"--cookies {cookie_txt_file()}")
+            stream = MediaStream(link, audio_parameters=AudioQuality.HIGH,video_flags=MediaStream.Flags.IGNORE)
         await assistant.play(
             chat_id,
             stream,
@@ -282,49 +281,6 @@ class Call(PyTgCalls):
         await asyncio.sleep(0.2)
         await assistant.leave_call(config.LOGGER_ID)
 
-        
-
-    async def _update_animation(self, chat_id, message):
-        """Update animation with error handling"""
-        try:
-            while chat_id in self.animation_tasks:
-                # Get current playback info
-                if chat_id not in db:
-                    break
-                    
-                current = db[chat_id][0]
-                played = current.get("played", "0:00")
-                duration = current.get("dur", "0:00")
-                
-                # Update markup
-                markup = InlineKeyboardMarkup(
-                    stream_markup_timer(_, chat_id, played, duration)
-                )
-                
-                await message.edit_reply_markup(reply_markup=markup)
-                await asyncio.sleep(1)  # Update every second
-                
-        except Exception as e:
-            LOGGER(__name__).error(f"Animation error: {str(e)}")
-        finally:
-            if chat_id in self.animation_tasks:
-                del self.animation_tasks[chat_id]
-
-    async def start_animation(self, chat_id, message):
-        """Start animation handling"""
-        # Stop existing animation if any
-        await self.stop_animation(chat_id)
-        
-        # Start new animation
-        task = asyncio.create_task(self._update_animation(chat_id, message))
-        self.animation_tasks[chat_id] = task
-
-    async def stop_animation(self, chat_id):
-        """Stop animation cleanly"""
-        if chat_id in self.animation_tasks:
-            self.animation_tasks[chat_id].cancel()
-            del self.animation_tasks[chat_id]
-
     async def join_call(
         self,
         chat_id: int,
@@ -341,11 +297,6 @@ class Call(PyTgCalls):
                 link,
                 audio_parameters=AudioQuality.HIGH,video_parameters=VideoQuality.SD_480p
                 )
-            # stream = AudioVideoPiped(
-            #     link,
-            #     audio_parameters=HighQualityAudio(),
-            #     video_parameters=MediumQualityVideo(),
-            # )
         else:
             stream = (
                 MediaStream(
@@ -355,18 +306,13 @@ class Call(PyTgCalls):
                     
                 )
                 if video
-                else MediaStream(link, audio_parameters=AudioQuality.HIGH,video_flags=MediaStream.Flags.IGNORE, ytdlp_parameters=f"--cookies {cookie_txt_file()}")
+                else MediaStream(link, audio_parameters=AudioQuality.HIGH,video_flags=MediaStream.Flags.IGNORE)
             )
         try:
             await assistant.play(
                 chat_id,
                 stream
             )
-            # await assistant.join_group_call(
-            #     chat_id,
-            #     stream,
-            #     stream_type=StreamType().pulse_stream,
-            # )
         except NoActiveGroupCall:
             raise AssistantErr(_["call_8"])
         except AlreadyJoinedError:
@@ -394,8 +340,7 @@ class Call(PyTgCalls):
                 loop = loop - 1
                 await set_loop(chat_id, loop)
             if popped:
-                rem = popped["file"]
-                autoclean.remove(rem)
+                await auto_clean(popped)
             if not check:
                 await _clear_(chat_id)
                 return await client.leave_call(chat_id)
@@ -440,7 +385,7 @@ class Call(PyTgCalls):
                     stream = MediaStream(
                         link,
                         audio_parameters=AudioQuality.HIGH,
-                        ytdlp_parameters=f"--cookies {cookie_txt_file()}"
+                        video_flags=MediaStream.Flags.IGNORE
                     )
                 try:
                     await client.play(chat_id, stream)
@@ -449,7 +394,7 @@ class Call(PyTgCalls):
                         original_chat_id,
                         text=_["call_6"],
                     )
-                img = await get_thumb(videoid,user_id)
+                img = await get_thumb(videoid)
                 button = stream_markup(_, chat_id)
                 run = await app.send_photo(
                     chat_id=original_chat_id,
@@ -487,7 +432,7 @@ class Call(PyTgCalls):
                     stream = MediaStream(
                         file_path,
                         audio_parameters=AudioQuality.HIGH,
-                        ytdlp_parameters=f"--cookies {cookie_txt_file()}"
+                        video_flags=MediaStream.Flags.IGNORE
                     )
                 try:
                     await client.play(chat_id, stream)
@@ -496,7 +441,7 @@ class Call(PyTgCalls):
                         original_chat_id,
                         text=_["call_6"],
                     )
-                img = await get_thumb(videoid,user_id)
+                img = await get_thumb(videoid)
                 button = stream_markup(_, chat_id)
                 await mystic.delete()
                 run = await app.send_photo(
@@ -520,7 +465,7 @@ class Call(PyTgCalls):
                         video_parameters=VideoQuality.SD_480p,
                     )
                     if str(streamtype) == "video"
-                    else MediaStream(videoid, audio_parameters=AudioQuality.HIGH, ytdlp_parameters=f"--cookies {cookie_txt_file()}")
+                    else MediaStream(videoid, audio_parameters=AudioQuality.HIGH, video_flags=MediaStream.Flags.IGNORE)
                 )
                 try:
                     await client.play(chat_id, stream)
@@ -549,7 +494,7 @@ class Call(PyTgCalls):
                     stream = MediaStream(
                         queued,
                         audio_parameters=AudioQuality.HIGH,
-                        ytdlp_parameters=f"--cookies {cookie_txt_file()}"
+                        video_flags=MediaStream.Flags.IGNORE
                     )
                 try:
                     await client.play(chat_id, stream)
@@ -585,7 +530,7 @@ class Call(PyTgCalls):
                     db[chat_id][0]["mystic"] = run
                     db[chat_id][0]["markup"] = "tg"
                 else:
-                    img = await get_thumb(videoid,user_id)
+                    img = await get_thumb(videoid)
                     button = stream_markup(_, chat_id)
                     run = await app.send_photo(
                         chat_id=original_chat_id,
